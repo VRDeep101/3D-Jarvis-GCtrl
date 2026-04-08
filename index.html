@@ -633,10 +633,10 @@
         }
 
         try {
-            loader.load('jellyfish-model.glb', (gltf) => {
+            loader.load('iron_man (1).glb', (gltf) => {
                 // SUCCESS loading local file
                 setupAndAddModel(gltf.scene);
-                statusText.innerText = "JELLYFISH LOADED";
+                statusText.innerText = "IronMan LOADED";
                 statusDot.className = "status-dot active";
             }, undefined, (error) => {
                 // FAILURE (Async) - Fallback to procedural
@@ -644,7 +644,7 @@
             });
         } catch (e) {
              // FAILURE (Sync) - Fallback to procedural
-             console.log("Jellyfish load error (Sync), falling back to procedural jet.", e);
+             console.log("IronMan load error (Sync), falling back to procedural jet.", e);
              loadDefaultModel();
         }
 
