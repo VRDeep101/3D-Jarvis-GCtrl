@@ -34,5 +34,4 @@ out/
 *.old
 
 # Optional: ignore large media/artifacts (uncomment if you prefer to keep binary media out of git)
-# Jarvis-3D-Web-SPA-Video-Demo.mp4
 # assets/media/
