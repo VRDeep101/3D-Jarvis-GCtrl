@@ -1,0 +1,38 @@
+.DS_Store
+Thumbs.db
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Build / Dist
+dist/
+build/
+out/
+
+# IDEs
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backups
+*.bak
+*.old
+
+# Optional: ignore large media/artifacts (uncomment if you prefer to keep binary media out of git)
+# Jarvis-3D-Web-SPA-Video-Demo.mp4
+# assets/media/

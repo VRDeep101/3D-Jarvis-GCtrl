@@ -1,0 +1,34 @@
+# 3D formats: mark binary/text appropriately to avoid EOL conversions and diffs
+*.glb   binary
+*.fbx   binary
+*.gltf text eol=lf
+*.obj   text eol=lf
+*.mtl   text eol=lf
+*.ply   -text
+*.stl   -text
+
+# Video and other binary media
+*.mp4   binary
+*.mov   binary
+*.webm  binary
+*.mkv   binary
+
+# Images
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+
+# Treat common text files as text with LF endings
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+# If you use Git LFS, uncomment and adapt the following lines:
+#*.mp4 filter=lfs diff=lfs merge=lfs -text
+#*.glb filter=lfs diff=lfs merge=lfs -text
+
+# Prevent exported archives from including node_modules
+node_modules/ export-ignore

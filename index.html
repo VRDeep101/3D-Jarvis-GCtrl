@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS - Hand Gesture Control</title>
+    
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts for Tech Look -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- MediaPipe Libraries (Global Scope) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --theme-color: #00ffff;
+            --theme-dim: rgba(0, 255, 255, 0.3);
+            --theme-glow: rgba(0, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: var(--theme-color);
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        /* Dynamic Theme Classes */
+        .theme-text { color: var(--theme-color); }
+        .theme-border { border-color: var(--theme-dim); }
+        .theme-bg-dim { background-color: var(--theme-glow); }
+        
+        /* Holographic UI Styling */
+        .hud-panel {
+            background: rgba(0, 20, 30, 0.65);
+            border: 1px solid var(--theme-dim);
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 15px var(--theme-glow);
+            transition: all 0.3s ease;
+        }
+
+        .hud-panel:hover {
+            border-color: var(--theme-color);
+            box-shadow: 0 0 20px var(--theme-dim);
+        }
+
+        .hud-title {
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--theme-color);
+            color: var(--theme-color);
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--theme-color);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px var(--theme-color);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: var(--theme-dim);
+            border-radius: 2px;
+        }
+
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: var(--theme-color);
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: var(--theme-color);
+        }
+        .toggle-label {
+            background-color: #333; /* Default off state */
+        }
+
+        /* Color Picker */
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: none;
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: 1px solid var(--theme-color);
+            border-radius: 50%;
+        }
+
+        /* Loader */
+        .loader {
+            border: 4px solid var(--theme-glow);
+            border-left-color: var(--theme-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Status Indicator */
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #333;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .status-dot.active {
+            background-color: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        .status-dot.searching {
+            background-color: #ffff00;
+            box-shadow: 0 0 10px #ffff00;
+        }
+
+        /* Custom Scrollbar for HUD */
+        .hud-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .hud-scroll::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .hud-scroll::-webkit-scrollbar-thumb {
+            background: var(--theme-dim);
+            border-radius: 2px;
+        }
+        .hud-scroll::-webkit-scrollbar-thumb:hover {
+            background: var(--theme-color);
+        }
+
+        #video-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -3; 
+            opacity: 0.15;
+            filter: grayscale(100%) contrast(1.2);
+            transform: scaleX(-1);
+        }
+
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2; 
+            transform: scaleX(-1); 
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; 
+        }
+    </style>
+</head>
+<body class="h-screen w-screen relative select-none overflow-hidden">
+
+    <!-- Background Video Feed -->
+    <video id="video-feed" playsinline></video>
+
+    <!-- Tracking Overlay -->
+    <canvas id="output_canvas"></canvas>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Main HUD (Scrollable Container) -->
+    <div class="absolute top-4 left-4 z-10 w-80 max-h-[calc(100vh-2rem)] overflow-y-auto hud-scroll pr-2 flex flex-col gap-4 pb-4">
+        
+        <!-- Header -->
+        <div class="hud-panel p-4 rounded-lg flex-shrink-0">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h1 class="hud-title text-xl font-bold mb-1">J.A.R.V.I.S.</h1>
+                    <div class="flex items-center gap-2 text-xs opacity-70">
+                        <span id="system-status-dot" class="status-dot searching"></span>
+                        <span id="system-status-text">INITIALIZING SYSTEMS...</span>
+                    </div>
+                </div>
+                <!-- Color Picker -->
+                <div class="flex flex-col items-center">
+                    <input type="color" id="theme-picker" value="#00ffff" title="System Theme Color">
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="hud-panel p-4 rounded-lg flex flex-col gap-4 flex-shrink-0">
+            <div class="flex justify-between items-center border-b theme-border pb-2">
+                <span class="font-bold text-sm tracking-widest theme-text">SENSITIVITY</span>
+            </div>
+
+            <!-- Move Sensitivity -->
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span>TRANSLATION</span>
+                    <span id="val-move">1.5</span>
+                </div>
+                <input type="range" id="slider-move" min="0.1" max="3.0" step="0.1" value="1.5">
+            </div>
+
+            <!-- Rotate Sensitivity -->
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span>ROTATION</span>
+                    <span id="val-rotate">1.5</span>
+                </div>
+                <input type="range" id="slider-rotate" min="0.1" max="3.0" step="0.1" value="1.5">
+            </div>
+
+            <!-- Scale Sensitivity -->
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span>SCALE</span>
+                    <span id="val-scale">1.5</span>
+                </div>
+                <input type="range" id="slider-scale" min="0.1" max="3.0" step="0.1" value="1.5">
+            </div>
+
+            <!-- Wireframe Toggle -->
+            <div class="flex items-center justify-between pt-2 border-t theme-border">
+                <span class="text-xs font-bold tracking-widest">WIREFRAME</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="wireframe-toggle" class="sr-only peer">
+                    <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all toggle-label"></div>
+                </label>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="hud-panel p-4 rounded-lg flex-shrink-0">
+            <label class="block text-xs font-bold mb-2 tracking-widest">UPLOAD MODEL (.GLB/.GLTF)</label>
+            <input type="file" id="file-input" accept=".glb,.gltf" class="block w-full text-xs opacity-80
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-full file:border-0
+              file:text-xs file:font-semibold
+              file:bg-white/10 file:text-inherit
+              hover:file:bg-white/20
+              cursor-pointer
+            "/>
+        </div>
+        
+        <!-- Instructions -->
+        <div class="hud-panel p-4 rounded-lg text-xs opacity-90 leading-relaxed flex-shrink-0">
+            <div class="mb-2 border-b theme-border pb-1 font-bold tracking-widest theme-text">GESTURE COMMANDS</div>
+            
+            <div class="mb-2">
+                <strong class="theme-text block">SINGLE PINCH (👌)</strong>
+                <span class="opacity-70">Move Object (Drag Air)</span>
+            </div>
+
+            <div class="mb-2">
+                <strong class="theme-text block">DOUBLE PINCH (👌...👌)</strong>
+                <span class="opacity-70">Scale Object (Two Hands)</span>
+            </div>
+
+            <div class="mb-2">
+                <strong class="theme-text block">SPIDER-MAN (🤟)</strong>
+                <span class="opacity-70">Rotate Object (Drag Air)</span>
+                <ul class="list-disc list-inside opacity-60 ml-1 mt-1">
+                    <li>Hold gesture to "grab" rotation</li>
+                    <li>Drag Left/Right to Spin</li>
+                    <li>Drag Up/Down to Tilt</li>
+                </ul>
+            </div>
+
+            <div>
+                <strong class="theme-text block">OPEN PALM (✋)</strong>
+                <span class="opacity-70">Neutral / Safe Mode</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-screen" class="absolute inset-0 bg-black flex flex-col items-center justify-center z-50">
+        <div class="loader mb-4"></div>
+        <div class="theme-text tracking-widest text-sm text-center">
+            LOADING NEURAL NETWORK<br>
+            <span class="text-xs opacity-50 mt-2 block">Please allow camera access</span>
+        </div>
+        <div id="camera-error" class="hidden text-red-500 text-xs mt-4 max-w-xs text-center border border-red-900 bg-red-900/20 p-2 rounded">
+            CAMERA ACCESS FAILED<br>Please close other apps using the camera and refresh.
+        </div>
+    </div>
+
+    <!-- Active Gesture Display -->
+    <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-center pointer-events-none w-full">
+        <div id="gesture-label" class="text-3xl font-bold hud-title opacity-0 transition-opacity duration-300 drop-shadow-[0_0_10px_var(--theme-color)]">
+            STANDBY
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // --- Configuration & State ---
+        const config = {
+            sensitivity: {
+                move: 1.5,
+                rotate: 1.5,
+                scale: 1.5
+            }
+        };
+
+        const state = {
+            targetPosition: new THREE.Vector3(0, 0, 0),
+            targetScale: 1.0,
+            rotationX: 0, 
+            rotationY: 0,
+            lastScaleDist: 0,
+            lastRotationPos: { x: 0, y: 0 },
+            lastMovePos: { x: 0, y: 0 },
+            isRotating: false,
+            isMoving: false,
+            activeGestures: [], 
+            isWireframe: false,
+            themeColor: '#00ffff'
+        };
+
+        const originalMaterials = new Map(); // Store original materials
+
+        // --- UI Element Binding ---
+        const statusDot = document.getElementById('system-status-dot');
+        const statusText = document.getElementById('system-status-text');
+        const gestureLabel = document.getElementById('gesture-label');
+        const loadingScreen = document.getElementById('loading-screen');
+        const cameraErrorMsg = document.getElementById('camera-error');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const wireframeToggle = document.getElementById('wireframe-toggle');
+        const themePicker = document.getElementById('theme-picker');
+        
+        document.getElementById('slider-move').addEventListener('input', (e) => {
+            config.sensitivity.move = parseFloat(e.target.value);
+            document.getElementById('val-move').innerText = config.sensitivity.move.toFixed(1);
+        });
+        document.getElementById('slider-rotate').addEventListener('input', (e) => {
+            config.sensitivity.rotate = parseFloat(e.target.value);
+            document.getElementById('val-rotate').innerText = config.sensitivity.rotate.toFixed(1);
+        });
+        document.getElementById('slider-scale').addEventListener('input', (e) => {
+            config.sensitivity.scale = parseFloat(e.target.value);
+            document.getElementById('val-scale').innerText = config.sensitivity.scale.toFixed(1);
+        });
+
+        wireframeToggle.addEventListener('change', (e) => {
+            state.isWireframe = e.target.checked;
+            updateModelMaterial();
+        });
+
+        // --- Theme Handling ---
+        function hexToRgbA(hex, alpha) {
+            let c;
+            if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+                c= hex.substring(1).split('');
+                if(c.length== 3){
+                    c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+                }
+                c= '0x'+c.join('');
+                return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+            }
+            return hex;
+        }
+
+        function updateTheme(color) {
+            state.themeColor = color;
+            const r = document.documentElement;
+            r.style.setProperty('--theme-color', color);
+            r.style.setProperty('--theme-dim', hexToRgbA(color, 0.3));
+            r.style.setProperty('--theme-glow', hexToRgbA(color, 0.1));
+
+            // Update Grid Helper
+            scene.remove(gridHelper);
+            gridHelper = new THREE.GridHelper(20, 20, color, 0x112233);
+            gridHelper.position.y = -2;
+            scene.add(gridHelper);
+
+            // Update Wireframe Color if active
+            if (state.isWireframe) {
+                updateModelMaterial();
+            }
+        }
+
+        themePicker.addEventListener('input', (e) => {
+            updateTheme(e.target.value);
+        });
+
+        function updateModelMaterial() {
+            if (!activeModel) return;
+            
+            activeModel.traverse((node) => {
+                if (node.isMesh) {
+                    if (state.isWireframe) {
+                        // 1. Save Original Material (if not already saved)
+                        if (!originalMaterials.has(node)) {
+                            originalMaterials.set(node, node.material);
+                        }
+                        // 2. Apply Theme-Colored Wireframe Material
+                        node.material = new THREE.MeshBasicMaterial({
+                            color: state.themeColor,
+                            wireframe: true,
+                        });
+                    } else {
+                        // 1. Restore Original Material
+                        if (originalMaterials.has(node)) {
+                            node.material = originalMaterials.get(node);
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Lighting - NEUTRAL WHITE
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.8); 
+        dirLight.position.set(5, 10, 7);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const rimLight = new THREE.SpotLight(0xffffff, 1.5); 
+        rimLight.position.set(-5, 5, -5);
+        scene.add(rimLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        fillLight.position.set(0, 0, 5);
+        scene.add(fillLight);
+
+        // Grid Helper
+        let gridHelper = new THREE.GridHelper(20, 20, 0x00ffff, 0x112233);
+        gridHelper.position.y = -2;
+        scene.add(gridHelper);
+
+        // Main Object Group
+        const pivotGroup = new THREE.Group();
+        scene.add(pivotGroup);
+
+        let activeModel;
+
+        function createDefaultModel() {
+            const group = new THREE.Group();
+            group.name = "SciFiJet";
+
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xcccccc, 
+                roughness: 0.3,
+                metalness: 0.6,
+                side: THREE.DoubleSide
+            });
+
+            // 1. Fuselage (Long Cone)
+            const fuselageGeo = new THREE.ConeGeometry(0.6, 3, 4); 
+            fuselageGeo.rotateX(Math.PI / 2); // Point Z forward
+            const fuselage = new THREE.Mesh(fuselageGeo, material);
+            fuselage.castShadow = true;
+            fuselage.receiveShadow = true;
+            group.add(fuselage);
+
+            // 2. Wings (Delta Shape using flattened Box)
+            // Using a custom shape via BoxGeometry to look like swept wings
+            const wingGeo = new THREE.BoxGeometry(2.5, 0.1, 1.2);
+            const wings = new THREE.Mesh(wingGeo, material);
+            wings.position.z = 0.2;
+            // Rotate wings slightly back for "swept" look logic requires buffer geo usually, 
+            // but we can cheat by adding two rotated boxes
+            wings.castShadow = true;
+            wings.receiveShadow = true;
+            group.add(wings);
+            
+            // 3. Vertical Stabilizers (Twin Tail)
+            const tailGeo = new THREE.BoxGeometry(0.1, 0.8, 0.8);
+            
+            const tailLeft = new THREE.Mesh(tailGeo, material);
+            tailLeft.position.set(-0.5, 0.4, 1.0);
+            tailLeft.rotation.z = Math.PI / 6; // Tilt out
+            tailLeft.castShadow = true;
+            group.add(tailLeft);
+
+            const tailRight = new THREE.Mesh(tailGeo, material);
+            tailRight.position.set(0.5, 0.4, 1.0);
+            tailRight.rotation.z = -Math.PI / 6; // Tilt out
+            tailRight.castShadow = true;
+            group.add(tailRight);
+
+            // 4. Cockpit Canopy (Darker)
+            const canopyGeo = new THREE.BoxGeometry(0.4, 0.3, 0.8);
+            const canopyMat = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.1,
+                metalness: 0.9
+            });
+            const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+            canopy.position.set(0, 0.35, -0.2);
+            canopy.castShadow = true;
+            group.add(canopy);
+
+            return group;
+        }
+
+        // --- Model Loading & Setup Logic ---
+        const loader = new GLTFLoader();
+
+        // Helper to process and add any model to the scene
+        function setupAndAddModel(model) {
+            if (activeModel) pivotGroup.remove(activeModel);
+            originalMaterials.clear(); // Clear material cache for new model
+
+            activeModel = model;
+            
+            const box = new THREE.Box3().setFromObject(activeModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const scale = maxDim > 0 ? 2.0 / maxDim : 1.0;
+            activeModel.scale.set(scale, scale, scale);
+            
+            pivotGroup.position.set(0,0,0);
+            pivotGroup.rotation.set(0,0,0);
+            state.targetPosition.set(0,0,0);
+            state.rotationX = 0;
+            state.rotationY = 0;
+
+            activeModel.traverse((node) => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                    if(node.material) {
+                        // Apply generic "nice" metal settings if likely not procedural
+                        if (node.name.indexOf("SciFiJet") === -1) {
+                            node.material.metalness = 0.5;
+                            node.material.roughness = 0.4;
+                        }
+
+                        // Apply wireframe if mode is currently active
+                        if (state.isWireframe) {
+                            if (!originalMaterials.has(node)) {
+                                originalMaterials.set(node, node.material);
+                            }
+                            node.material = new THREE.MeshBasicMaterial({
+                                color: state.themeColor,
+                                wireframe: true,
+                            });
+                        }
+                    }
+                }
+            });
+
+            pivotGroup.add(activeModel);
+        }
+
+        // Initial Load Strategy
+        // 1. Try to load 'jellyfish-model.glb'
+        // 2. If fail, fall back to Procedural Jet
+        
+        const fileInput = document.getElementById('file-input');
+        
+        statusText.innerText = "SEARCHING FOR JELLYFISH...";
+        statusDot.className = "status-dot searching";
+
+        function loadDefaultModel() {
+            console.log("Falling back to procedural jet.");
+            const jet = createDefaultModel();
+            setupAndAddModel(jet);
+            statusText.innerText = "SYSTEM ONLINE";
+            statusDot.className = "status-dot active";
+        }
+
+        try {
+            loader.load('jellyfish-model.glb', (gltf) => {
+                // SUCCESS loading local file
+                setupAndAddModel(gltf.scene);
+                statusText.innerText = "JELLYFISH LOADED";
+                statusDot.className = "status-dot active";
+            }, undefined, (error) => {
+                // FAILURE (Async) - Fallback to procedural
+                loadDefaultModel();
+            });
+        } catch (e) {
+             // FAILURE (Sync) - Fallback to procedural
+             console.log("Jellyfish load error (Sync), falling back to procedural jet.", e);
+             loadDefaultModel();
+        }
+
+        // File Input Listener
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const url = URL.createObjectURL(file);
+            statusText.innerText = "IMPORTING GEOMETRY...";
+            statusDot.className = "status-dot searching";
+
+            loader.load(url, (gltf) => {
+                setupAndAddModel(gltf.scene);
+                statusText.innerText = "MODEL LOADED";
+                statusDot.className = "status-dot active";
+            }, undefined, (error) => {
+                console.error(error);
+                statusText.innerText = "IMPORT FAILED";
+                statusDot.className = "status-dot";
+            });
+        });
+
+        // --- MediaPipe Logic ---
+
+        function dist(a, b) {
+            if (!a || !b) return Infinity; 
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        // Helper: Is Finger Down (Curled)
+        function isFingerDown(landmarks, tipIdx, pipIdx) {
+            return dist(landmarks[tipIdx], landmarks[0]) < dist(landmarks[pipIdx], landmarks[0]);
+        }
+
+        // Helper: Is Finger Up (Extended)
+        function isFingerUp(landmarks, tipIdx, pipIdx) {
+             return dist(landmarks[tipIdx], landmarks[0]) > dist(landmarks[pipIdx], landmarks[0]);
+        }
+        
+        function isPinching(landmarks) {
+            if (!landmarks || landmarks.length < 21) return false;
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            return dist(thumbTip, indexTip) < 0.05;
+        }
+
+        // Spider-Man Gesture: Index & Pinky Extended, Middle & Ring Curled
+        function isSpiderman(landmarks) {
+            if (!landmarks || landmarks.length < 21) return false;
+
+            const indexUp = isFingerUp(landmarks, 8, 6);
+            const pinkyUp = isFingerUp(landmarks, 20, 18);
+
+            const middleDown = isFingerDown(landmarks, 12, 10);
+            const ringDown = isFingerDown(landmarks, 16, 14);
+
+            return indexUp && pinkyUp && middleDown && ringDown;
+        }
+
+        function onResults(results) {
+            if (loadingScreen.style.display !== 'none' && results) {
+                loadingScreen.style.display = 'none';
+                statusText.innerText = "SYSTEM ONLINE";
+                statusDot.className = "status-dot active";
+            }
+
+            // Draw Overlay
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
+                                 {color: state.themeColor, lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks,
+                                {color: '#ffffff', lineWidth: 1, radius: 3});
+                }
+            }
+            canvasCtx.restore();
+
+            const hands = results.multiHandLandmarks;
+
+            state.activeGestures = [];
+            let pinchCount = 0;
+            let pinchingHands = [];
+            let rotationHand = null;
+
+            if (hands && hands.length > 0) {
+                for (let i = 0; i < hands.length; i++) {
+                    const landmarks = hands[i];
+                    if (!landmarks || landmarks.length < 21) continue; 
+                    
+                    // Check Pinch (for Move & Scale)
+                    if (isPinching(landmarks)) {
+                        pinchCount++;
+                        pinchingHands.push(landmarks);
+                    }
+                    
+                    // Check Spiderman (for Rotation) - If not pinching
+                    else if (isSpiderman(landmarks)) {
+                        if (!rotationHand) rotationHand = landmarks;
+                    }
+                }
+
+                // Priority Logic:
+                // 1. Double Pinch -> Scale
+                // 2. Single Pinch -> Move
+                // 3. Spider-Man -> Rotate
+
+                if (pinchCount === 2) {
+                    handleScaling(pinchingHands[0], pinchingHands[1]);
+                    state.activeGestures.push("SCALING");
+                    // Reset other states
+                    state.isRotating = false;
+                    state.isMoving = false;
+                } else if (pinchCount === 1) {
+                    // Use the pinching hand for movement
+                    handleMovement(pinchingHands[0]);
+                    state.activeGestures.push("MOVING");
+                    state.lastScaleDist = 0;
+                    state.isRotating = false;
+                } else if (rotationHand) {
+                    handleRotation(rotationHand);
+                    state.activeGestures.push("ROTATING");
+                    state.lastScaleDist = 0;
+                    state.isMoving = false;
+                } else {
+                    state.lastScaleDist = 0;
+                    state.isRotating = false; // Reset rotation anchor
+                    state.isMoving = false; // Reset move anchor
+                }
+
+            } else {
+                state.lastScaleDist = 0;
+                state.isRotating = false;
+                state.isMoving = false;
+            }
+
+            // Update UI Label
+            if (state.activeGestures.length > 0) {
+                gestureLabel.innerText = state.activeGestures.join(" + ");
+                gestureLabel.style.opacity = '1';
+                gestureLabel.style.textShadow = `0 0 10px ${state.themeColor}`;
+            } else {
+                gestureLabel.style.opacity = '0';
+            }
+        }
+
+        function handleMovement(landmarks) {
+            // Use Index Tip for tracking position
+            const indexTip = landmarks[8];
+            const handX = (1 - indexTip.x) * 2 - 1; 
+            const handY = -(indexTip.y * 2 - 1);    
+
+            if (!state.isMoving) {
+                state.isMoving = true;
+                state.lastMovePos = { x: handX, y: handY };
+                return;
+            }
+
+            const dx = handX - state.lastMovePos.x;
+            const dy = handY - state.lastMovePos.y;
+
+            // Sensitivity factor for delta movement
+            const speed = 8.0 * config.sensitivity.move; 
+
+            state.targetPosition.x += dx * speed;
+            state.targetPosition.y += dy * speed;
+
+            state.lastMovePos = { x: handX, y: handY };
+        }
+
+        function handleScaling(hand1, hand2) {
+            const h1 = hand1[9]; // Middle MCP
+            const h2 = hand2[9];
+            const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+
+            if (state.lastScaleDist === 0) {
+                state.lastScaleDist = dist; 
+                return;
+            }
+
+            const delta = dist - state.lastScaleDist;
+            state.lastScaleDist = dist;
+
+            const scaleFactor = 1 + (delta * config.sensitivity.scale * 3);
+            let newScale = state.targetScale * scaleFactor;
+            newScale = Math.max(0.2, Math.min(newScale, 5.0));
+            state.targetScale = newScale;
+        }
+
+        function handleRotation(landmarks) {
+            // New "Trackball" / Delta Rotation Logic
+            // 1. Get current hand position (Wrist)
+            const wrist = landmarks[0];
+            const xPos = (1 - wrist.x) * 2 - 1; 
+            const yPos = -(wrist.y * 2 - 1);
+            
+            // 2. If this is the first frame of rotation, anchor it
+            if (!state.isRotating) {
+                state.isRotating = true;
+                state.lastRotationPos = { x: xPos, y: yPos };
+                return;
+            }
+
+            // 3. Calculate delta (Movement since last frame)
+            const dx = xPos - state.lastRotationPos.x;
+            const dy = yPos - state.lastRotationPos.y;
+
+            // 4. Apply rotation incrementally
+            // Move Right (positive dx) -> Rotate Y (Yaw right)
+            // Move Up (positive dy) -> Rotate X (Pitch up)
+            const speed = 4.0 * config.sensitivity.rotate;
+            
+            state.rotationY += dx * speed;
+            state.rotationX += dy * speed;
+
+            // 5. Update anchor
+            state.lastRotationPos = { x: xPos, y: yPos };
+        }
+
+        // --- Main Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const damping = 5.0 * delta; 
+
+            // Interpolate Position
+            pivotGroup.position.lerp(state.targetPosition, damping);
+
+            // Interpolate Rotation
+            const targetEuler = new THREE.Euler(state.rotationX, state.rotationY, 0, 'XYZ');
+            const targetQuaternion = new THREE.Quaternion().setFromEuler(targetEuler);
+            pivotGroup.quaternion.slerp(targetQuaternion, damping);
+
+            // Interpolate Scale
+            const currentScale = pivotGroup.scale.x; 
+            const smoothScale = THREE.MathUtils.lerp(currentScale, state.targetScale, damping);
+            pivotGroup.scale.set(smoothScale, smoothScale, smoothScale);
+
+            // Float effect if no interaction
+            if (state.activeGestures.length === 0) {
+                const time = clock.getElapsedTime();
+                pivotGroup.position.y += Math.sin(time) * 0.002;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // --- Window Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- MediaPipe Initialization ---
+        const videoElement = document.getElementById('video-feed');
+        
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1, 
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        // More robust camera initialization
+        async function startCamera() {
+            try {
+                // Try to get a constraint that works on most devices
+                const constraints = {
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                await videoElement.play();
+                
+                const cameraFeed = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({image: videoElement});
+                    },
+                    width: 1280,
+                    height: 720
+                });
+                cameraFeed.start();
+                
+            } catch (error) {
+                console.error("Camera access error:", error);
+                cameraErrorMsg.style.display = 'block';
+                cameraErrorMsg.innerHTML = `CAMERA ERROR<br>${error.name}: ${error.message}`;
+            }
+        }
+
+        startCamera();
+        canvasElement.width = 1280;
+        canvasElement.height = 720;
+
+    </script>
+</body>
+</html>
